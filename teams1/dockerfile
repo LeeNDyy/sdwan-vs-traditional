@@ -1,0 +1,7 @@
+FROM alpine:latest
+
+# Ставим strongswan для IPsec и сетевые утилиты для тестов
+RUN apk add --no-cache strongswan iproute2 iptables bash iputils
+
+# Запускаем демон IPsec на переднем плане
+CMD ["/usr/sbin/ipsec", "start", "--nofork"]

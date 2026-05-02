@@ -1,0 +1,33 @@
+services:
+  branch-a:
+    build: .
+    container_name: branch-a
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    volumes:
+      - ./config/a-ipsec.conf:/etc/ipsec.conf
+      - ./config/a-ipsec.secrets.txt:/etc/ipsec.secrets
+    networks:
+      wan_net:
+        ipv4_address: 10.0.0.10
+
+  branch-b:
+    build: .
+    container_name: branch-b
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    volumes:
+      - ./config/b-ipsec.conf:/etc/ipsec.conf
+      - ./config/b-ipsec.secrets.txt:/etc/ipsec.secrets
+    networks:
+      wan_net:
+        ipv4_address: 10.0.0.20
+
+networks:
+  wan_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
