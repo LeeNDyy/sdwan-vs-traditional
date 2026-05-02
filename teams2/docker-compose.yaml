@@ -1,0 +1,64 @@
+services:
+  branch_a:
+    build:
+      context: ./team2
+      dockerfile: Dockerfile
+    container_name: sdwan_branch_a
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+    environment:
+      BRANCH_NAME: branch_a
+      PEER_FIBER_IP: 10.10.10.2
+      PEER_SAT_IP: 10.20.20.2
+      PEER_BRANCH_NET: 192.168.20.0/24
+    networks:
+      fiber_net:
+        ipv4_address: 10.10.10.1
+      sat_net:
+        ipv4_address: 10.20.20.1
+      branch_a_lan:
+        ipv4_address: 192.168.10.2
+
+  branch_b:
+    build:
+      context: ./team2
+      dockerfile: Dockerfile
+    container_name: sdwan_branch_b
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+    environment:
+      BRANCH_NAME: branch_b
+      PEER_FIBER_IP: 10.10.10.1
+      PEER_SAT_IP: 10.20.20.1
+      PEER_BRANCH_NET: 192.168.10.0/24
+    networks:
+      fiber_net:
+        ipv4_address: 10.10.10.2
+      sat_net:
+        ipv4_address: 10.20.20.2
+      branch_b_lan:
+        ipv4_address: 192.168.20.2
+
+networks:
+  fiber_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.10.0/30
+  sat_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.20.20.0/30
+  branch_a_lan:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.10.0/24
+  branch_b_lan:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.20.0/24
