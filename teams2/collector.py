@@ -30,22 +30,33 @@ class MetricCollector:
     """сборщик icmp метрик rtt и потерь пакетов через заданный интерфейс"""
 
     # регулярные выражения для извлечения среднего rtt и процента потерь из вывода ping
-    RTT_PATTERN = re.compile(r"=\s*([\d.]+)/([\d.]+)/([\d.]+)/")
+    # формат Ubuntu: rtt min/avg/max/mdev = 0.123/0.456/0.789/0.100 ms
+    RTT_PATTERN = re.compile(r"rtt [^=]+=\s*([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+)")
     LOSS_PATTERN = re.compile(r"(\d+(?:\.\d+)?)%\s*packet\s*loss")
 
-    def __init__(self, count: int = 4, timeout_sec: int = 2) -> None:
-        # задаем количество пакетов в серии и время ожидания ответа
+    def __init__(self, count: int = 4, timeout_sec: int = 3) -> None:
+        # count  — количество ICMP-пакетов за одну серию
+        # timeout_sec — deadline на ВСЮ серию (флаг -w в iputils-ping Ubuntu)
+        #               для 4 пакетов с интервалом 0.2s на спутнике (200ms RTT)
+        #               нужно минимум ~2.5s; берём 3 с запасом
         self.count = count
         self.timeout_sec = timeout_sec
 
     def collect(self, target: ProbeTarget) -> LinkMetrics:
-        # формируем безопасную команду ping с жесткой привязкой к выходному интерфейсу
+        # -I  — привязка к конкретному исходящему интерфейсу
+        # -c  — количество пакетов
+        # -i  — интервал между пакетами (0.2s ускоряет серию)
+        # -w  — deadline в секундах для всей команды (iputils-ping / Ubuntu)
+        # -W  — timeout ожидания ответа на каждый пакет в секундах
         cmd = (
-            f"ping -I {shlex.quote(target.interface)} -c {self.count} "
-            f"-W {self.timeout_sec} {shlex.quote(target.probe_ip)}"
+            f"ping -I {shlex.quote(target.interface)}"
+            f" -c {self.count}"
+            f" -i 0.2"
+            f" -W {self.timeout_sec}"
+            f" -w {self.count * self.timeout_sec}"
+            f" {shlex.quote(target.probe_ip)}"
         )
         try:
-            # выполняем команду в подпроцессе и перехватываем текстовый вывод
             proc = subprocess.run(
                 cmd,
                 shell=True,
@@ -54,21 +65,17 @@ class MetricCollector:
                 text=True,
             )
         except Exception as exc:
-            # в случае системной ошибки возвращаем метрики "канал полностью упал"
             return LinkMetrics(target.name, 9999.0, 100.0, False, f"ping exception: {exc}")
 
-        # объединяем стандартный вывод и ошибки для последующего парсинга
         output = (proc.stdout or "") + (proc.stderr or "")
         rtt = self._parse_rtt_avg(output)
         loss = self._parse_loss(output)
 
-        # если данные не удалось извлечь, выставляем максимально плохие значения
         if rtt is None:
             rtt = 9999.0
         if loss is None:
             loss = 100.0
 
-        # формируем итоговый объект с метриками и проверкой доступности канала
         return LinkMetrics(
             name=target.name,
             rtt_avg_ms=rtt,
@@ -78,11 +85,10 @@ class MetricCollector:
         )
 
     def _parse_rtt_avg(self, output: str) -> float | None:
-        # ищем в выводе строку со статистикой времени отклика и берем среднее значение
+        # берём второе число (avg) из строки "rtt min/avg/max/mdev = ..."
         match = self.RTT_PATTERN.search(output)
         return float(match.group(2)) if match else None
 
     def _parse_loss(self, output: str) -> float | None:
-        # ищем строку с процентом потерянных пакетов
         match = self.LOSS_PATTERN.search(output)
         return float(match.group(1)) if match else None

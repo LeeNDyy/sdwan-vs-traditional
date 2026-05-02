@@ -1,7 +1,7 @@
 services:
   branch_a:
     build:
-      context: ./team2
+      context: .
       dockerfile: Dockerfile
     container_name: sdwan_branch_a
     privileged: true
@@ -22,7 +22,7 @@ services:
 
   branch_b:
     build:
-      context: ./team2
+      context: .
       dockerfile: Dockerfile
     container_name: sdwan_branch_b
     privileged: true
